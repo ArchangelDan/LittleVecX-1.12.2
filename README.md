@@ -14,8 +14,8 @@ Forge **14.23.5.2855**; CreativeCore **v1.10.71**; LittleTiles **v1.5.87**.
 
 The complete feature breakdown (with all controls, signals, and config options) is on the mod pages:
 
-* [CurseForge]()
-* [Modrinth]()
+* [CurseForge](https://www.curseforge.com/minecraft/mc-mods/littlevecx-1-12-2)
+* [Modrinth](https://modrinth.com/mod/littlevecx-1.12.2)
 
 ## Links
 
