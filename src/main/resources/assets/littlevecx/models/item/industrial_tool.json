@@ -1,0 +1,6 @@
+{
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "littlevecx:items/industrial_recipe_empty"
+  }
+}

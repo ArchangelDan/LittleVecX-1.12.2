@@ -1,0 +1,14 @@
+[{
+  "modid": "${mod_id}",
+  "name": "${mod_name}",
+  "description": "A LittleTiles addon adding an Industrial Recipe with multi-selection, a flexible animation system (multi, overlay, checkpoint, loop), a full-featured multi-floor elevator with signals, and extra structures like storage, wallpaper, and furniture. A preview of ideas for the upcoming LittleVecX 1.21.1.",
+  "version": "${mod_version}",
+  "mcversion": "${mc_version}",
+  "url": "https://t.me/kharkivstroi",
+  "updateUrl": "",
+  "authorList": ["${mod_author}"],
+  "credits": "${mod_credits}",
+  "logoFile": "${mod_icon}",
+  "screenshots": [],
+  "dependencies": ["required-after:littletiles", "required-after:creativecore"]
+}]
