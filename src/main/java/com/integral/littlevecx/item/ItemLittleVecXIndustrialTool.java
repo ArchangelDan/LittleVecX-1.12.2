@@ -1090,10 +1090,15 @@ public class ItemLittleVecXIndustrialTool extends ItemLittleRecipeAdvanced imple
         PlacementPosition correctedPosition = MarkMode.loadPosition(position.copy(), preview);
         PlacementPreview markedPreview = PlacementHelper.getPreviews(player.world, stack, correctedPosition, true, false, true, getPlacementMode(stack));
         if (markedPreview != null) {
-            PreviewBounds selectionBounds = getSelectionBounds(stack, markedPreview.context);
+            PreviewBounds sourceBounds = getPreviewSourceBounds(stack, markedPreview.context);
             PreviewBounds placedBounds = getPlacedBounds(markedPreview);
-            if (selectionBounds != null && placedBounds != null) {
-                LittleAbsoluteVec expectedOrigin = selectionBounds.getMinimum();
+            if (sourceBounds != null && placedBounds != null) {
+                // A selection box may include empty space. For example, a ceiling tile selected
+                // down to a lower point has a box whose minimum is below the tile. Aligning to
+                // that empty minimum mirrored the preview to the bottom of the selection.
+                // LittlePreviews contains the actual copied tiles, so its bounds are the only
+                // valid source anchor for copy and move previews.
+                LittleAbsoluteVec expectedOrigin = sourceBounds.getMinimum();
                 LittleAbsoluteVec actualOrigin = placedBounds.getMinimum();
                 LittleAbsoluteVec delta = actualOrigin.copy();
                 delta.sub(expectedOrigin);
@@ -1115,23 +1120,23 @@ public class ItemLittleVecXIndustrialTool extends ItemLittleRecipeAdvanced imple
     }
 
     @Nullable
-    private static PreviewBounds getSelectionBounds(ItemStack stack, LittleGridContext context) {
+    private PreviewBounds getPreviewSourceBounds(ItemStack stack, LittleGridContext context) {
         List<IndustrialSelectionRegion> regions = getMovePreviewRegions(stack);
         if (regions.isEmpty())
             return null;
 
         BlockPos globalMin = IndustrialSelectionMode.getGlobalMinPosition(regions);
+        LittlePreviews previews = getLittlePreview(stack, false);
+        if (previews == null || previews.isEmptyIncludeChildren())
+            return null;
+
+        previews = previews.copy();
+        previews.convertTo(context);
         PreviewBounds bounds = new PreviewBounds(globalMin, context);
-        for (IndustrialSelectionRegion region : regions) {
-            if (region == null)
+        for (com.creativemd.littletiles.common.tile.preview.LittlePreview preview : previews.allPreviews()) {
+            if (preview == null || preview.box == null)
                 continue;
-            LittleAbsoluteBox box = region.toAbsoluteBox();
-            if (box == null)
-                continue;
-            box.convertTo(context);
-            bounds.include(context.toGrid(box.pos.getX() - globalMin.getX()) + box.box.minX, context.toGrid(box.pos.getY() - globalMin.getY()) + box.box.minY,
-                    context.toGrid(box.pos.getZ() - globalMin.getZ()) + box.box.minZ, context.toGrid(box.pos.getX() - globalMin.getX()) + box.box.maxX,
-                    context.toGrid(box.pos.getY() - globalMin.getY()) + box.box.maxY, context.toGrid(box.pos.getZ() - globalMin.getZ()) + box.box.maxZ);
+            bounds.include(preview.box.minX, preview.box.minY, preview.box.minZ, preview.box.maxX, preview.box.maxY, preview.box.maxZ);
         }
         return bounds.isValid() ? bounds : null;
     }
