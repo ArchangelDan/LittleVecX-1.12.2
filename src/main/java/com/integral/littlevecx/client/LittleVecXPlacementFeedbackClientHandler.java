@@ -9,6 +9,7 @@ import com.creativemd.littletiles.common.tile.place.PlacePreview;
 import com.creativemd.littletiles.common.tile.preview.LittlePreview;
 import com.creativemd.littletiles.common.tile.preview.LittlePreviews;
 import com.creativemd.littletiles.common.util.place.PlacementPreview;
+import com.integral.littlevecx.LittleVecXConfig;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
@@ -77,6 +78,8 @@ public class LittleVecXPlacementFeedbackClientHandler {
         ItemStack stack = MC.player.getHeldItemMainhand();
         if (!(stack.getItem() instanceof ILittlePlacer))
             return;
+        if (shouldUseNativeLowResolution(stack))
+            return;
 
         LittlePreviews previews = getBasePreviews(stack, false);
         if (!LittleVecXPlacementFeedbackHelper.supportsPreview(previews))
@@ -99,6 +102,11 @@ public class LittleVecXPlacementFeedbackClientHandler {
 
     private static boolean shouldAllowLowResolution() {
         return PreviewRenderer.marked == null || PreviewRenderer.marked.allowLowResolution();
+    }
+
+    private static boolean shouldUseNativeLowResolution(ItemStack stack) {
+        return LittleVecXConfig.optimizeLargeBlueprintPreviews && shouldAllowLowResolution() && stack.hasTagCompound()
+                && stack.getTagCompound().hasKey("pos") && LittlePreview.getTotalCount(stack.getTagCompound()) >= LittlePreview.lowResolutionMode;
     }
 
     private static void renderInvalidPreview(PlacementPreview preview) {

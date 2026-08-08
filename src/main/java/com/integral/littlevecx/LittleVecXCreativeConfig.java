@@ -24,6 +24,9 @@ public class LittleVecXCreativeConfig implements ICreativeConfig {
     @CreativeConfig(name = "Industrial screwdriver")
     public final Industrial industrial = new Industrial();
 
+    @CreativeConfig(name = "Performance")
+    public final Performance performance = new Performance();
+
     @CreativeConfig(name = "Debug")
     public final Debug debug = new Debug();
 
@@ -94,5 +97,11 @@ public class LittleVecXCreativeConfig implements ICreativeConfig {
 
         @CreativeConfig(name = "Detailed diagnostic logging")
         public boolean enableVerboseLogging = false;
+    }
+
+    public static class Performance {
+
+        @CreativeConfig(name = "Optimize large blueprint previews")
+        public boolean optimizeLargeBlueprintPreviews = true;
     }
 }

@@ -61,6 +61,10 @@ public class LittleVecXFurnitureClientHandler {
             clearAutoFurnitureMark();
             return;
         }
+        if (!LittleVecXFurniturePlacementHelper.isFurnitureStack(current)) {
+            clearAutoFurnitureMark();
+            return;
+        }
 
         LittlePreviews previews = getBasePreviews(current, false);
         if (!LittleVecXFurniturePlacementHelper.isFurniturePreview(previews)) {
@@ -88,6 +92,8 @@ public class LittleVecXFurnitureClientHandler {
 
         ItemStack stack = player.getHeldItemMainhand();
         if (!(stack.getItem() instanceof ILittlePlacer))
+            return;
+        if (!LittleVecXFurniturePlacementHelper.isFurnitureStack(stack))
             return;
 
         LittlePreviews previews = getBasePreviews(stack, false);
@@ -117,6 +123,8 @@ public class LittleVecXFurnitureClientHandler {
 
         ItemStack stack = MC.player.getHeldItemMainhand();
         if (!(stack.getItem() instanceof ILittlePlacer))
+            return;
+        if (!LittleVecXFurniturePlacementHelper.isFurnitureStack(stack))
             return;
 
         LittlePreviews previews = getBasePreviews(stack, false);

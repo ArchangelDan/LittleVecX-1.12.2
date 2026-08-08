@@ -26,6 +26,7 @@ public final class LittleVecXConfig {
     private static final String CATEGORY_ANIMATIONS = "animations";
     private static final String CATEGORY_WALLPAPER = "wallpaper";
     private static final String CATEGORY_INDUSTRIAL = "industrial";
+    private static final String CATEGORY_PERFORMANCE = "performance";
     private static final String CATEGORY_DEBUG = "debug";
     private static Configuration config;
 
@@ -41,6 +42,7 @@ public final class LittleVecXConfig {
     public static int screwdriverBoxesPerTick = 256;
     public static int screwdriverBatchesPerTick = 3;
     public static int screwdriverCombineChangedTileLimit = 512;
+    public static boolean optimizeLargeBlueprintPreviews = true;
     /** Opt-in diagnostic output for animation, elevator and selection troubleshooting. */
     public static boolean enableVerboseLogging;
 
@@ -153,6 +155,12 @@ public final class LittleVecXConfig {
                     100000,
                     "Maximum changed tile pieces after which replace-only skips expensive LittleTiles combineTiles. 0 disables combining for this action."
             );
+            optimizeLargeBlueprintPreviews = config.getBoolean(
+                    "optimizeLargeBlueprintPreviews",
+                    CATEGORY_PERFORMANCE,
+                    true,
+                    "Prevents LittleVecX from rebuilding the full placement preview when LittleTiles is using its low-resolution blueprint preview. Disable only if you need the red invalid-placement overlay for large blueprints."
+            );
             enableVerboseLogging = config.getBoolean(
                     "enableVerboseLogging",
                     CATEGORY_DEBUG,
@@ -202,6 +210,7 @@ public final class LittleVecXConfig {
         target.industrial.screwdriverBoxesPerTick = screwdriverBoxesPerTick;
         target.industrial.screwdriverBatchesPerTick = screwdriverBatchesPerTick;
         target.industrial.screwdriverCombineChangedTileLimit = screwdriverCombineChangedTileLimit;
+        target.performance.optimizeLargeBlueprintPreviews = optimizeLargeBlueprintPreviews;
         target.debug.enableVerboseLogging = enableVerboseLogging;
     }
 
@@ -218,6 +227,7 @@ public final class LittleVecXConfig {
         screwdriverBoxesPerTick = clamp(source.industrial.screwdriverBoxesPerTick, 1, 100000);
         screwdriverBatchesPerTick = clamp(source.industrial.screwdriverBatchesPerTick, 1, 16);
         screwdriverCombineChangedTileLimit = clamp(source.industrial.screwdriverCombineChangedTileLimit, 0, 100000);
+        optimizeLargeBlueprintPreviews = source.performance.optimizeLargeBlueprintPreviews;
         enableVerboseLogging = source.debug.enableVerboseLogging;
         rebuildWallpaperCaches();
     }
