@@ -13,10 +13,12 @@ import javax.annotation.Nullable;
 import com.creativemd.creativecore.client.rendering.RenderBox;
 import com.creativemd.creativecore.common.packet.PacketHandler;
 import com.creativemd.creativecore.common.gui.container.SubGui;
+import com.creativemd.creativecore.common.utils.math.Rotation;
 import com.creativemd.littletiles.LittleTiles;
 import com.creativemd.littletiles.client.LittleTilesClient;
 import com.creativemd.littletiles.client.gui.configure.SubGuiConfigure;
 import com.creativemd.littletiles.client.render.overlay.PreviewRenderer;
+import com.creativemd.littletiles.client.render.tile.LittleRenderBox;
 import com.creativemd.littletiles.common.action.LittleAction;
 import com.creativemd.littletiles.common.action.LittleActionException;
 import com.creativemd.littletiles.common.action.block.LittleActionDestroyBoxes;
@@ -45,6 +47,7 @@ import com.creativemd.littletiles.common.util.shape.ShapeSelection;
 import com.creativemd.littletiles.common.util.shape.ShapeSelection.ShapeSelectPos;
 import com.integral.littlevecx.LittleVecXMod;
 import com.integral.littlevecx.LittleVecXDebugLog;
+import com.integral.littlevecx.StructureLittleVecXRotated;
 import com.integral.littlevecx.backup.LittleVecXCrashBackup;
 import com.integral.littlevecx.client.LittleVecXIndustrialSelectionHighlightHandler;
 import com.integral.littlevecx.client.LittleVecXIndustrialToolClientHandler;
@@ -61,6 +64,8 @@ import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.block.model.IBakedModel;
 import net.minecraft.client.renderer.block.model.ItemCameraTransforms.TransformType;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
+import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
+import net.minecraft.client.resources.I18n;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.entity.Entity;
@@ -92,6 +97,8 @@ public class ItemLittleVecXIndustrialTool extends ItemLittleRecipeAdvanced imple
     private static final String KEY_PREVIEW_SOURCE_DIMENSION = "littlevecx_industrial_preview_source_dimension";
     private static final String KEY_PREVIEW_SOURCE_WORLD = "littlevecx_industrial_preview_source_world";
     private static final String KEY_SELECTION_STACK_ID = "littlevecx_industrial_selection_stack_id";
+    private static final String KEY_ROTATION_STEP = "littlevecx_industrial_rotation_step";
+    private static final double DEFAULT_ROTATION_STEP = 15.0;
     @SideOnly(Side.CLIENT)
     private static final Deque<List<IndustrialSelectionRegion>> selectionRedoHistory = new ArrayDeque<>();
     @SideOnly(Side.CLIENT)
@@ -140,7 +147,10 @@ public class ItemLittleVecXIndustrialTool extends ItemLittleRecipeAdvanced imple
     public void addInformation(ItemStack stack, @Nullable World worldIn, List<String> tooltip, ITooltipFlag flagIn) {
         ensureIndustrialMode(stack);
         tooltip.add("ЛКМ: добавить точку выделения");
-        tooltip.add(getKeyName(LittleTilesClient.mark, "M") + ": редактировать точки");
+        if (hasRotationStructure(stack))
+            tooltip.add(I18n.format("tooltip.littlevecx.industrial.rotation_mark", getKeyName(LittleTilesClient.mark, "M")));
+        else
+            tooltip.add(getKeyName(LittleTilesClient.mark, "M") + ": редактировать точки");
         tooltip.add(getKeyName(LittleTilesClient.configure, "C") + ": сохранить выделение в рецепт");
         tooltip.add(getKeyName(LittleTilesClient.configureAdvanced, "Ctrl+C") + ": настроить грид");
         tooltip.add(getKeyName(LittleVecXIndustrialToolClientHandler.copySelectionToPreview, "[") + ": копировать выделение в превью");
@@ -148,6 +158,8 @@ public class ItemLittleVecXIndustrialTool extends ItemLittleRecipeAdvanced imple
         tooltip.add(getKeyName(LittleVecXIndustrialToolClientHandler.deleteSelection, "X") + ": удалить выделенное из мира");
         tooltip.add(getKeyName(LittleVecXIndustrialToolClientHandler.clearSelectionModifier, "Shift") + "+ЛКМ: очистить все области");
         tooltip.add(getKeyName(LittleVecXIndustrialToolClientHandler.openScrewdriver, "V") + ": industrial-отвертка");
+        if (hasRotationStructure(stack))
+            tooltip.add(I18n.format("tooltip.littlevecx.industrial.rotation_step", formatRotationStep(getRotationStep(stack))));
     }
 
     @Override
@@ -204,6 +216,75 @@ public class ItemLittleVecXIndustrialTool extends ItemLittleRecipeAdvanced imple
     @SideOnly(Side.CLIENT)
     public void saveCachedModel(EnumFacing facing, BlockRenderLayer layer, List<BakedQuad> cachedQuads, IBlockState state, TileEntity te, ItemStack stack,
             boolean threaded) {}
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public float getPreviewAlphaFactor() {
+        // The normal LT preview is axis-aligned. Rotation recipes receive their own
+        // transformed white preview in render(), so displaying both would be misleading.
+        return hasRotationStructure(Minecraft.getMinecraft().player == null ? ItemStack.EMPTY : Minecraft.getMinecraft().player.getHeldItemMainhand()) ? 0.0F : 1.0F;
+    }
+
+    @Override
+    @SideOnly(Side.CLIENT)
+    public void render(EntityPlayer player, ItemStack stack, double x, double y, double z) {
+        if (player == null || player.world == null || !hasRotationStructure(stack))
+            return;
+
+        Minecraft minecraft = Minecraft.getMinecraft();
+        PlacementPosition position = null;
+        if (PreviewRenderer.marked != null)
+            position = PreviewRenderer.marked.getPosition();
+        else if (minecraft.objectMouseOver != null && minecraft.objectMouseOver.typeOfHit == RayTraceResult.Type.BLOCK && minecraft.objectMouseOver.sideHit != null)
+            position = PlacementHelper.getPosition(player.world, minecraft.objectMouseOver, getPositionContext(stack), this, stack);
+        if (position == null)
+            return;
+
+        boolean allowLowResolution = PreviewRenderer.marked == null || PreviewRenderer.marked.allowLowResolution();
+        PlacementPreview preview = PlacementHelper.getPreviews(player.world, stack, position, PreviewRenderer.isCentered(player, stack, this),
+                PreviewRenderer.isFixed(player, stack, this), allowLowResolution, getPlacementMode(stack));
+        if (preview == null)
+            return;
+
+        StructureLittleVecXRotated.PlacementPreviewTransform transform = StructureLittleVecXRotated.resolvePlacementPreviewTransform(preview.previews, preview.pos,
+                preview.inBlockOffset);
+        if (transform == null)
+            return;
+
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA,
+                GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
+        GlStateManager.enableTexture2D();
+        minecraft.renderEngine.bindTexture(PreviewRenderer.WHITE_TEXTURE);
+        GlStateManager.depthMask(false);
+
+        double pivotX = transform.pivotX - TileEntityRendererDispatcher.staticPlayerX;
+        double pivotY = transform.pivotY - TileEntityRendererDispatcher.staticPlayerY;
+        double pivotZ = transform.pivotZ - TileEntityRendererDispatcher.staticPlayerZ;
+        double posX = preview.pos.getX() - TileEntityRendererDispatcher.staticPlayerX;
+        double posY = preview.pos.getY() - TileEntityRendererDispatcher.staticPlayerY;
+        double posZ = preview.pos.getZ() - TileEntityRendererDispatcher.staticPlayerZ;
+        int alpha = (int) ((Math.sin(System.nanoTime() / 200000000F) * 0.2F + 0.5F) * 255);
+
+        GlStateManager.pushMatrix();
+        GlStateManager.translate(transform.offsetX, transform.offsetY, transform.offsetZ);
+        GlStateManager.translate(pivotX, pivotY, pivotZ);
+        GlStateManager.rotate((float) transform.rotationX, 1.0F, 0.0F, 0.0F);
+        GlStateManager.rotate((float) transform.rotationY, 0.0F, 1.0F, 0.0F);
+        GlStateManager.rotate((float) transform.rotationZ, 0.0F, 0.0F, 1.0F);
+        GlStateManager.translate(-pivotX, -pivotY, -pivotZ);
+        for (PlacePreview placePreview : preview.getPreviews()) {
+            for (LittleRenderBox cube : placePreview.getPreviews(preview.context)) {
+                cube.setColor(-1);
+                cube.renderPreview(posX, posY, posZ, alpha);
+            }
+        }
+        GlStateManager.popMatrix();
+
+        GlStateManager.depthMask(true);
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableBlend();
+    }
 
     @Override
     public boolean hasCustomBoxes(World world, ItemStack stack, EntityPlayer player, IBlockState state, PlacementPosition pos, RayTraceResult result) {
@@ -317,6 +398,10 @@ public class ItemLittleVecXIndustrialTool extends ItemLittleRecipeAdvanced imple
     @SideOnly(Side.CLIENT)
     public IMarkMode onMark(EntityPlayer player, ItemStack stack, PlacementPosition position, RayTraceResult result, PlacementPreview previews) {
         activateSelectionStack(stack);
+        // A rotation recipe has no selection points to edit. In this case MarkMode anchors the
+        // whole transformed preview and lets the player adjust its exact placement in space.
+        if (hasRotationStructure(stack) && previews != null)
+            return new MarkMode(player, position, previews);
         // The first point of the next region is already fixed; mark-mode must not replace or
         // move that unfinished selection. It becomes available again after the second click.
         if (!hasLittlePreview(stack) && hasUnfinishedSelectionRegion())
@@ -401,22 +486,79 @@ public class ItemLittleVecXIndustrialTool extends ItemLittleRecipeAdvanced imple
     @SideOnly(Side.CLIENT)
     public SubGuiConfigure getConfigureGUIAdvanced(EntityPlayer player, ItemStack stack) {
         activateSelectionStack(stack);
-        return new SubGuiLittleVecXIndustrialConfigure(stack, getPositionContext(stack), ItemMultiTiles.currentMode, isFiltered(), getFilter()) {
+        return new SubGuiLittleVecXIndustrialConfigure(stack, getPositionContext(stack), ItemMultiTiles.currentMode, isFiltered(), getFilter(), getRotationStep(stack)) {
 
             @Override
-            public void saveConfiguration(LittleGridContext context, PlacementMode mode, boolean activeFilter, TileSelector selector) {
+            public void saveConfiguration(LittleGridContext context, PlacementMode mode, boolean activeFilter, TileSelector selector, double rotationStep) {
                 if (selection != null)
                     selection.convertTo(context);
                 ItemMultiTiles.currentContext = context;
                 ItemMultiTiles.currentMode = mode;
                 setFilter(activeFilter, selector);
+                setRotationStep(stack, rotationStep);
             }
         };
     }
 
     @Override
+    public void rotate(EntityPlayer player, ItemStack stack, Rotation rotation, boolean client) {
+        if (hasRotationStructure(stack)) {
+            LittlePreviews previews = getLittlePreview(stack, false);
+            // LT normally maps ↑/↓ to roll (Z). For the industrial Rotation
+            // recipe, pitch is the useful missing direction: ↑/↓ now tilt the
+            // placed structure forward/backward around X, while ←/→ stay on Y.
+            Rotation industrialRotation = rotation;
+            if (rotation == Rotation.Z_CLOCKWISE)
+                industrialRotation = Rotation.X_CLOCKWISE;
+            else if (rotation == Rotation.Z_COUNTER_CLOCKWISE)
+                industrialRotation = Rotation.X_COUNTER_CLOCKWISE;
+
+            if (StructureLittleVecXRotated.adjustPreviewRotation(previews, industrialRotation, getRotationStep(stack))) {
+                saveLittlePreview(stack, previews);
+                return;
+            }
+        }
+
+        LittlePreviews previews = getLittlePreview(stack, false);
+        if (previews == null || previews.isEmpty())
+            return;
+        previews.rotatePreviews(rotation, previews.getContext().rotationCenter);
+        saveLittlePreview(stack, previews);
+    }
+
+    @Override
     public LittleGridContext getPositionContext(ItemStack stack) {
         return ItemMultiTiles.currentContext == null ? LittleGridContext.get() : ItemMultiTiles.currentContext;
+    }
+
+    public static double getRotationStep(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || !stack.hasTagCompound() || !stack.getTagCompound().hasKey(KEY_ROTATION_STEP))
+            return DEFAULT_ROTATION_STEP;
+        return sanitizeRotationStep(stack.getTagCompound().getDouble(KEY_ROTATION_STEP));
+    }
+
+    public static void setRotationStep(ItemStack stack, double step) {
+        if (stack == null || stack.isEmpty())
+            return;
+        ensureIndustrialMode(stack);
+        stack.getTagCompound().setDouble(KEY_ROTATION_STEP, sanitizeRotationStep(step));
+    }
+
+    public static boolean hasRotationStructure(ItemStack stack) {
+        return stack != null && !stack.isEmpty() && stack.hasTagCompound() && stack.getTagCompound().hasKey("structure", 10)
+                && "rotation".equals(stack.getTagCompound().getCompoundTag("structure").getString("id"));
+    }
+
+    private static double sanitizeRotationStep(double step) {
+        if (Double.isNaN(step) || Double.isInfinite(step) || step <= 0.0 || step > 360.0)
+            return DEFAULT_ROTATION_STEP;
+        return step;
+    }
+
+    private static String formatRotationStep(double step) {
+        if (Math.abs(step - Math.rint(step)) < 1.0E-9)
+            return Long.toString(Math.round(step));
+        return Double.toString(step);
     }
 
     public static void ensureIndustrialMode(ItemStack stack) {

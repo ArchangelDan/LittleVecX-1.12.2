@@ -32,6 +32,7 @@ import com.creativemd.creativecore.common.utils.type.PairList;
 import com.creativemd.creativecore.common.utils.type.UUIDSupplier;
 import com.creativemd.creativecore.common.world.IOrientatedWorld;
 import com.creativemd.creativecore.common.world.SubWorld;
+import com.creativemd.creativecore.common.utils.math.Rotation;
 import com.creativemd.littletiles.client.gui.controls.GuiLTDistance;
 import com.creativemd.littletiles.common.entity.DoorController;
 import com.creativemd.littletiles.common.entity.EntityAnimation;
@@ -54,7 +55,9 @@ import com.creativemd.littletiles.common.structure.type.door.LittleDoorBase;
 import com.creativemd.littletiles.common.tile.math.box.LittleBox;
 import com.creativemd.littletiles.common.tile.math.location.LocalStructureLocation;
 import com.creativemd.littletiles.common.tile.math.vec.LittleAbsoluteVec;
+import com.creativemd.littletiles.common.tile.math.vec.LittleVec;
 import com.creativemd.littletiles.common.tile.parent.IStructureTileList;
+import com.creativemd.littletiles.common.tile.parent.StructureTileList;
 import com.creativemd.littletiles.common.tile.preview.LittleAbsolutePreviews;
 import com.creativemd.littletiles.common.tile.preview.LittlePreviews;
 import com.creativemd.littletiles.common.tileentity.TileEntityLittleTiles;
@@ -321,6 +324,138 @@ public class StructureLittleVecXRotated extends LittleStructure {
         }
     }
 
+    /**
+     * Final transform used for a placement preview. It intentionally mirrors the
+     * controller created by {@link #finishedPlacement(Placement)} so the white
+     * preview shows the position the static rotation will actually keep.
+     */
+    public static final class PlacementPreviewTransform {
+
+        public final double pivotX;
+        public final double pivotY;
+        public final double pivotZ;
+        public final double rotationX;
+        public final double rotationY;
+        public final double rotationZ;
+        public final double offsetX;
+        public final double offsetY;
+        public final double offsetZ;
+
+        private PlacementPreviewTransform(Vector3d pivot, ResolvedTransform transform) {
+            pivotX = pivot.x;
+            pivotY = pivot.y;
+            pivotZ = pivot.z;
+            rotationX = transform.rotX;
+            rotationY = transform.rotY;
+            rotationZ = transform.rotZ;
+            offsetX = transform.offX;
+            offsetY = transform.offY;
+            offsetZ = transform.offZ;
+        }
+    }
+
+    public static boolean isRotationPreview(@Nullable LittlePreviews previews) {
+        return previews != null && previews.hasStructure() && "rotation".equals(previews.getStructureId());
+    }
+
+    /**
+     * Reads the rotation recipe from preview NBT and returns the same final
+     * transform that the placed EntityAnimation receives. Preview NBT has no
+     * world connection, therefore this deliberately uses a detached structure.
+     */
+    @Nullable
+    public static PlacementPreviewTransform resolvePlacementPreviewTransform(@Nullable LittlePreviews previews, @Nullable BlockPos anchor,
+            @Nullable LittleVec inBlockOffset) {
+        if (!isRotationPreview(previews) || anchor == null)
+            return null;
+
+        try {
+            LittleStructure structure = StructureTileList.create(previews.structureNBT, null);
+            if (!(structure instanceof StructureLittleVecXRotated))
+                return null;
+
+            // PlacementPreview keeps fractional placement in a separate offset rather than
+            // in its BlockPos. Move only tile boxes here: the saved custom axis remains in
+            // the same local coordinates as it will after the real placement.
+            LittlePreviews placedPreviews = previews;
+            if (inBlockOffset != null && (inBlockOffset.x != 0 || inBlockOffset.y != 0 || inBlockOffset.z != 0)) {
+                placedPreviews = previews.copy();
+                for (com.creativemd.littletiles.common.tile.preview.LittlePreview preview : placedPreviews.allPreviews())
+                    preview.box.add(inBlockOffset);
+            }
+
+            StructureLittleVecXRotated rotated = (StructureLittleVecXRotated) structure;
+            StructureAbsolute absolute = new StructureAbsolute(anchor, placedPreviews.getSurroundingBox(), placedPreviews.getContext());
+            return new PlacementPreviewTransform(absolute.rotationCenter, rotated.resolveBasePlacedTransform(anchor, placedPreviews));
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Changes only the final value of a rotation recipe. The existing timeline,
+     * duration, interpolation and custom axis stay intact, so arrows remain a
+     * placement shortcut rather than replacing the editor configuration.
+     */
+    public static boolean adjustPreviewRotation(@Nullable LittlePreviews previews, @Nullable Rotation rotation, double degrees) {
+        if (!isRotationPreview(previews) || rotation == null || Double.isNaN(degrees) || Double.isInfinite(degrees) || isZero(degrees))
+            return false;
+
+        try {
+            LittleStructure structure = StructureTileList.create(previews.structureNBT, null);
+            if (!(structure instanceof StructureLittleVecXRotated))
+                return false;
+
+            StructureLittleVecXRotated rotated = (StructureLittleVecXRotated) structure;
+            int duration = sanitizeDuration(rotated.duration);
+            double delta = degrees * rotation.direction;
+            switch (rotation.axis) {
+            case X:
+                rotated.rotX = offsetFinalRotation(rotated.rotX, duration, delta);
+                break;
+            case Y:
+                rotated.rotY = offsetFinalRotation(rotated.rotY, duration, delta);
+                break;
+            case Z:
+                rotated.rotZ = offsetFinalRotation(rotated.rotZ, duration, delta);
+                break;
+            default:
+                return false;
+            }
+
+            NBTTagCompound updated = new NBTTagCompound();
+            rotated.writeToNBT(updated);
+            overwriteCompound(previews.structureNBT, updated);
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    @Nullable
+    private static ValueTimeline offsetFinalRotation(@Nullable ValueTimeline timeline, int duration, double delta) {
+        double current = timeline == null ? 0.0 : timeline.value(duration);
+        double adjusted = normalizeDegrees(current + delta);
+        if (timeline == null)
+            return legacyLinearTimeline(adjusted, duration);
+
+        PairList<Integer, Double> points = timeline.getPointsCopy();
+        int finalKey = points.indexOfKey(duration);
+        if (finalKey >= 0) {
+            points.get(finalKey).value = adjusted;
+            return ValueTimeline.create(ValueTimeline.getId(timeline.getClass()), points);
+        } else
+            timeline.addPoint(duration, adjusted);
+        return timeline;
+    }
+
+    private static void overwriteCompound(NBTTagCompound target, NBTTagCompound source) {
+        for (String key : new ArrayList<>(target.getKeySet()))
+            target.removeTag(key);
+        for (String key : source.getKeySet())
+            target.setTag(key, source.getTag(key).copy());
+    }
+
     private LittleGridContext getOffsetContext() {
         try {
             return LittleGridContext.get(sanitizeOffGrid(offGrid));
@@ -329,7 +464,7 @@ public class StructureLittleVecXRotated extends LittleStructure {
         }
     }
 
-    private ResolvedTransform resolveBasePlacedTransform(BlockPos anchor, LittleAbsolutePreviews previews) {
+    private ResolvedTransform resolveBasePlacedTransform(BlockPos anchor, LittlePreviews previews) {
         int duration = sanitizeDuration(this.duration);
 
         double x = normalizeDegrees(rotX != null ? rotX.value(duration) : 0.0);
@@ -341,7 +476,8 @@ public class StructureLittleVecXRotated extends LittleStructure {
         double userOffY = offY != null ? offContext.toVanillaGrid(offY.value(duration)) : 0.0;
         double userOffZ = offZ != null ? offContext.toVanillaGrid(offZ.value(duration)) : 0.0;
 
-        StructureAbsolute absolute = new StructureAbsolute(previews.pos, previews.getSurroundingBox(), previews.getContext());
+        BlockPos previewPosition = previews instanceof LittleAbsolutePreviews ? ((LittleAbsolutePreviews) previews).pos : anchor;
+        StructureAbsolute absolute = new StructureAbsolute(previewPosition, previews.getSurroundingBox(), previews.getContext());
 
         double pivotOffX = 0.0;
         double pivotOffY = 0.0;
@@ -349,7 +485,7 @@ public class StructureLittleVecXRotated extends LittleStructure {
         if (axis != null && axis.length == 7) {
             try {
                 StructureRelative axisRel = new StructureRelative(axis);
-                StructureAbsolute axisAbs = new StructureAbsolute(new LittleAbsoluteVec(previews.pos, previews.getContext()), axisRel);
+                StructureAbsolute axisAbs = new StructureAbsolute(new LittleAbsoluteVec(previewPosition, previews.getContext()), axisRel);
 
                 Vector3d delta = new Vector3d(axisAbs.rotationCenter);
                 delta.sub(absolute.rotationCenter);

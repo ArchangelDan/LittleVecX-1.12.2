@@ -6,7 +6,9 @@ import java.util.List;
 import com.creativemd.creativecore.common.gui.CoreControl;
 import com.creativemd.creativecore.common.gui.controls.gui.GuiCheckBox;
 import com.creativemd.creativecore.common.gui.controls.gui.GuiComboBox;
+import com.creativemd.creativecore.common.gui.controls.gui.GuiLabel;
 import com.creativemd.creativecore.common.gui.controls.gui.GuiTextBox;
+import com.creativemd.creativecore.common.gui.controls.gui.GuiTextfield;
 import com.creativemd.creativecore.common.gui.controls.gui.custom.GuiStackSelectorAll;
 import com.creativemd.creativecore.common.gui.event.gui.GuiControlChangedEvent;
 import com.creativemd.creativecore.common.utils.mc.BlockUtils;
@@ -33,17 +35,20 @@ public abstract class SubGuiLittleVecXIndustrialConfigure extends SubGuiConfigur
     public PlacementMode mode;
     public boolean activeFilter;
     public TileSelector selector;
+    public double rotationStep;
     private List<String> modeNames;
 
-    public SubGuiLittleVecXIndustrialConfigure(ItemStack stack, LittleGridContext context, PlacementMode mode, boolean activeFilter, TileSelector selector) {
+    public SubGuiLittleVecXIndustrialConfigure(ItemStack stack, LittleGridContext context, PlacementMode mode, boolean activeFilter, TileSelector selector,
+            double rotationStep) {
         super(200, 190, stack);
         this.context = context;
         this.mode = mode;
         this.activeFilter = activeFilter;
         this.selector = selector;
+        this.rotationStep = rotationStep;
     }
 
-    public abstract void saveConfiguration(LittleGridContext context, PlacementMode mode, boolean activeFilter, TileSelector selector);
+    public abstract void saveConfiguration(LittleGridContext context, PlacementMode mode, boolean activeFilter, TileSelector selector, double rotationStep);
 
     @Override
     public void createControls() {
@@ -66,7 +71,10 @@ public abstract class SubGuiLittleVecXIndustrialConfigure extends SubGuiConfigur
         modeBox.select(I18n.translateToLocal(mode.name));
         controls.add(modeBox);
 
-        controls.add(new GuiTextBox("text", "", 5, 84, 185));
+        controls.add(new GuiLabel("rotation_step_label", CoreControl.translate("gui.littlevecx.industrial.rotation_step"), 5, 87));
+        controls.add(new GuiTextfield("rotation_step", formatRotationStep(rotationStep), 112, 84, 78, 10).setFloatOnly());
+
+        controls.add(new GuiTextBox("text", "", 5, 107, 185));
         onControlChanged(new GuiControlChangedEvent(modeBox));
     }
 
@@ -100,7 +108,19 @@ public abstract class SubGuiLittleVecXIndustrialConfigure extends SubGuiConfigur
             selector = meta ? new StateSelector(BlockUtils.getState(filterBlock, stackFilter.getMetadata())) : new TileSelectorBlock(filterBlock);
         }
 
-        saveConfiguration(context, mode, activeFilter, selector);
+        try {
+            rotationStep = Double.parseDouble(((GuiTextfield) get("rotation_step")).text);
+        } catch (NumberFormatException e) {
+            // The item validates the value and falls back to its default.
+        }
+
+        saveConfiguration(context, mode, activeFilter, selector, rotationStep);
+    }
+
+    private static String formatRotationStep(double step) {
+        if (Math.abs(step - Math.rint(step)) < 1.0E-9)
+            return Long.toString(Math.round(step));
+        return Double.toString(step);
     }
 
     @CustomEventSubscribe

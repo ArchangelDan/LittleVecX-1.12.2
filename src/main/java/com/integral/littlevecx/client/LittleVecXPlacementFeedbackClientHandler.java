@@ -10,6 +10,7 @@ import com.creativemd.littletiles.common.tile.preview.LittlePreview;
 import com.creativemd.littletiles.common.tile.preview.LittlePreviews;
 import com.creativemd.littletiles.common.util.place.PlacementPreview;
 import com.integral.littlevecx.LittleVecXConfig;
+import com.integral.littlevecx.item.ItemLittleVecXIndustrialTool;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
@@ -77,6 +78,8 @@ public class LittleVecXPlacementFeedbackClientHandler {
 
         ItemStack stack = MC.player.getHeldItemMainhand();
         if (!(stack.getItem() instanceof ILittlePlacer))
+            return;
+        if (stack.getItem() instanceof ItemLittleVecXIndustrialTool && ItemLittleVecXIndustrialTool.hasRotationStructure(stack))
             return;
         if (shouldUseNativeLowResolution(stack))
             return;
