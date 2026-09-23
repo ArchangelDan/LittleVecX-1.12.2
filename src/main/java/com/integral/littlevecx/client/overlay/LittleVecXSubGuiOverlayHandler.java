@@ -32,12 +32,12 @@ public class LittleVecXSubGuiOverlayHandler {
 
         if (!overridesInitialized) {
             new LittleVecXSignalDialogOverride();
-            new LittleVecXColorCopyPasteOverride<SubGuiScrewdriver>(SubGuiScrewdriver.class);
-            new LittleVecXColorCopyPasteOverride<SubGuiChisel>(SubGuiChisel.class);
-            new LittleVecXColorCopyPasteOverride<SubGuiColorTube>(SubGuiColorTube.class);
-            new LittleVecXColorCopyPasteOverride<SubGuiGrabber>(SubGuiGrabber.class);
-            new LittleVecXColorCopyPasteOverride<SubGuiLittleVecXIndustrialChisel>(SubGuiLittleVecXIndustrialChisel.class);
-            new LittleVecXColorCopyPasteOverride<SubGuiLittleVecXIndustrialScrewdriver>(SubGuiLittleVecXIndustrialScrewdriver.class);
+            new LittleVecXHexColorPickerOverride<SubGuiScrewdriver>(SubGuiScrewdriver.class);
+            new LittleVecXHexColorPickerOverride<SubGuiChisel>(SubGuiChisel.class);
+            new LittleVecXHexColorPickerOverride<SubGuiColorTube>(SubGuiColorTube.class);
+            new LittleVecXHexColorPickerOverride<SubGuiGrabber>(SubGuiGrabber.class);
+            new LittleVecXHexColorPickerOverride<SubGuiLittleVecXIndustrialChisel>(SubGuiLittleVecXIndustrialChisel.class);
+            new LittleVecXHexColorPickerOverride<SubGuiLittleVecXIndustrialScrewdriver>(SubGuiLittleVecXIndustrialScrewdriver.class);
             overridesInitialized = true;
         }
 
@@ -70,6 +70,8 @@ public class LittleVecXSubGuiOverlayHandler {
             LittleVecXSubGuiOverride.apply(currentTopLayer);
             previousTopLayer = currentTopLayer;
         }
+        LittleVecXHexColorPickerOverride.attachAletTutorials(currentTopLayer);
+        LittleVecXHexColorPickerOverride.keepHexControlsInFront(currentTopLayer);
     }
 
     private static SubGui resolveTopLayer() {

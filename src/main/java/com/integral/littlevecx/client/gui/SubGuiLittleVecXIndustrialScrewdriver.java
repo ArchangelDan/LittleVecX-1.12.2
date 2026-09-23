@@ -84,9 +84,9 @@ public class SubGuiLittleVecXIndustrialScrewdriver extends SubGuiConfigure {
         int pickerY = 183;
 
         if (!blockMode) {
-            controls.add(new GuiCheckBox("matchColor", CoreControl.translate("gui.littlevecx.screwdriver.match_color"), 5, 48, getBoolean(KEY_FILTER_COLORIZE, true)));
-            controls.add(new GuiCheckBox("meta", CoreControl.translate("gui.littlevecx.metadata"), 95, 48, getBoolean(KEY_FILTER_META, true)));
-            controls.add(new GuiLittleVecXColorPicker("matchPicker", 5, 60,
+            controls.add(new GuiCheckBox("matchColor", CoreControl.translate("gui.littlevecx.screwdriver.match_color"), 5, 23, getBoolean(KEY_FILTER_COLORIZE, true)));
+            controls.add(new GuiCheckBox("meta", CoreControl.translate("gui.littlevecx.metadata"), 95, 23, getBoolean(KEY_FILTER_META, true)));
+            controls.add(new GuiLittleVecXColorPicker("matchPicker", 5, 35,
                     readStoredColor(KEY_FILTER_COLOR_VALUE, ColorUtils.WHITE),
                     LittleTiles.CONFIG.isTransparencyEnabled(getPlayer()),
                     LittleTiles.CONFIG.getMinimumTransparency(getPlayer())));
