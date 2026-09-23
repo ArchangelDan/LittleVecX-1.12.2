@@ -145,5 +145,9 @@ gui.littlevecx.noclip=No clip (ignore collisions)
 gui.littlevecx.rotation_z=Rotation Z
 gui.littlevecx.rotation_y=Rotation Y
 gui.littlevecx.rotation_x=Rotation X
+gui.littlevecx.industrial.rotation_step=Rotation step:
+tooltip.littlevecx.industrial.rotation_step=Arrow keys: rotate by %s°
+tooltip.littlevecx.industrial.rotation_mark=%s: precisely position the preview
+gui.littlevecx.color.hex_tutorial=Click # to open the HEX field. Enter or paste a six-digit RGB color code without #. The color and sliders update together.
 
 structure.category.littlevecx=LittleVecX

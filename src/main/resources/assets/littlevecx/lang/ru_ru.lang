@@ -145,5 +145,9 @@ gui.littlevecx.noclip=Без коллизии
 gui.littlevecx.rotation_z=Поворот Z
 gui.littlevecx.rotation_y=Поворот Y
 gui.littlevecx.rotation_x=Поворот X
+gui.littlevecx.industrial.rotation_step=Шаг поворота:
+tooltip.littlevecx.industrial.rotation_step=Стрелки: поворот на %s°
+tooltip.littlevecx.industrial.rotation_mark=%s: точно разместить превью
+gui.littlevecx.color.hex_tutorial=Нажмите #, чтобы открыть HEX-поле. Введите или вставьте шестизначный код цвета без #. Цвет и ползунки обновятся вместе.
 
 structure.category.littlevecx=LittleVecX
