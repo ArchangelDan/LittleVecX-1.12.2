@@ -387,10 +387,10 @@ public class StructureLittleVecXElevator extends StructureLittleVecXAdditiveAnim
 
     @Override
     public void changed(ISignalComponent changed) {
-        super.changed(changed);
-
-        if (isClient() || changed == null)
+        if (changed == null || !hasWorld() || getWorld().isRemote)
             return;
+
+        super.changed(changed);
 
         try {
             boolean[] state = changed.getState();
@@ -611,7 +611,7 @@ public class StructureLittleVecXElevator extends StructureLittleVecXAdditiveAnim
         // tick, making the arrival edge invisible to external signal consumers.
         // Let it remain high for one complete tick before reading the queue again.
         if (!isClient() && !queuedFloors.isEmpty())
-            queueForNextTick();
+            queueElevatorForNextTick();
     }
 
     @Override
@@ -950,7 +950,10 @@ public class StructureLittleVecXElevator extends StructureLittleVecXAdditiveAnim
     }
 
     private boolean pulseDirectionInputFromActivator(int directionInputOffset) {
-        if (isClient())
+        StructureLittleVecXElevator liveTarget = resolveServerActivatorTarget();
+        if (liveTarget != null && liveTarget != this)
+            return liveTarget.pulseDirectionInputFromActivator(directionInputOffset);
+        if (!hasWorld() || getWorld().isRemote)
             return false;
 
         InternalSignalInput input = getInput(LittleVecXConfig.elevatorSignalCount * 2 + directionInputOffset);
@@ -963,6 +966,22 @@ public class StructureLittleVecXElevator extends StructureLittleVecXAdditiveAnim
         input.updateState(new boolean[input.getState().length]);
         notifyChange();
         return true;
+    }
+
+    /**
+     * The Activator can ray-trace the structure stored in an EntityAnimation. That
+     * temporary instance has no main block in the real world, so signal processing
+     * must be forwarded to the original server structure before reading its inputs.
+     */
+    @Nullable
+    protected StructureLittleVecXElevator resolveServerActivatorTarget() {
+        if (hasWorld())
+            return this;
+
+        EntityAnimation liveAnimation = getLiveAnimation(getAnimatedStructureTarget());
+        World realWorld = liveAnimation == null ? null : liveAnimation.getRealWorld();
+        StructureLittleVecXElevator mirror = resolveRealWorldMirror(realWorld, liveAnimation);
+        return mirror != null && mirror.hasWorld() ? mirror : null;
     }
 
     protected boolean requestAdjacentFloor(int direction) {
@@ -1205,6 +1224,23 @@ public class StructureLittleVecXElevator extends StructureLittleVecXAdditiveAnim
             System.arraycopy(state, 0, output.getState(), 0, Math.min(state.length, output.getState().length));
     }
 
+    /**
+     * Starting an animation can move the source elevator into LittleTiles' transient
+     * animation state, where its main block no longer owns a world. The live animated
+     * counterpart must receive delayed elevator work; queuing the detached source
+     * would make LittleTiles dereference a null world in queueStructureForNextTick.
+     */
+    protected void queueElevatorForNextTick() {
+        StructureLittleVecXElevator liveTarget = getElevatorTarget();
+        if (liveTarget != null && liveTarget.hasWorld()) {
+            liveTarget.queueForNextTick();
+            return;
+        }
+
+        if (hasWorld())
+            queueForNextTick();
+    }
+
     protected int resolveOutputIndex(String identifier) {
         if (identifier == null || type == null || type.outputs == null)
             return -1;
@@ -1292,7 +1328,7 @@ public class StructureLittleVecXElevator extends StructureLittleVecXAdditiveAnim
         try {
             EntityAnimation animation = activateAccumulatedLayer(activationLayer, player, UUID.randomUUID());
             syncTravelSound(animation, soundCue, startFloor, floor, activationLayer.getSafeDuration());
-            queueForNextTick();
+            queueElevatorForNextTick();
             return true;
         } catch (LittleActionException ex) {
             com.integral.littlevecx.LittleVecXDebugLog.debug(LOGGER, "LittleVecX elevator debug startTravel.exception: startFloor={}, floor={}, deltaFloors={}, message={}", startFloor,
@@ -1350,7 +1386,7 @@ public class StructureLittleVecXElevator extends StructureLittleVecXAdditiveAnim
         if (!queuedFloors.contains(floor))
             queuedFloors.add(floor);
         mirrorQueue(target);
-        queueForNextTick();
+        queueElevatorForNextTick();
     }
 
     protected void mirrorQueue(@Nullable StructureLittleVecXElevator target) {
@@ -1468,7 +1504,7 @@ public class StructureLittleVecXElevator extends StructureLittleVecXAdditiveAnim
             target.targetFloor = floor;
             target.pendingArrivalFloor = -1;
         }
-        queueForNextTick();
+        queueElevatorForNextTick();
     }
 
     protected static LittleVecXAnimationLayer createBasicTravelTemplate(boolean upwards, int distance, int offGrid, int duration,
