@@ -1,5 +1,0 @@
-1.0.1
-Added the Optimize large blueprint previews option for optimizing previews of large blueprints. When enabled, LittleVecX disables the red invalid-placement overlay whenever LittleTiles switches to low-resolution mode. This prevents major FPS drops caused by fully processing large blueprints solely for the red preview.
-
-1.0.0
-Release
