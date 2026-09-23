@@ -104,7 +104,6 @@ public class LittleVecXMod {
     public static final String NAME = "LittleVecX";
     public static final String VERSION = "@VERSION@";
     public static LittleVecXCreativeConfig CONFIG;
-    // Future roadmap anchors live in com.integral.littlevecx.future.
 
     @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
